@@ -1,336 +1,195 @@
-# 🎨 ESP32 RGB LED Controller
+# 😈 ESP32 TROLL BOX
 
-Control de tira LED RGB 2835 (12V) con **Blynk App** y **modo reactivo a música**.
+**3 herramientas de bromas en 1:**
+- 📺 **TV-B-Gone** - Apaga cualquier TV a tu alrededor
+- 👻 **Escritor Fantasma** - Escribe mensajes espeluznantes en PCs
+- 🖱️ **Mouse Jiggler** - Mueve el mouse remotamente
 
-![ESP32](https://img.shields.io/badge/ESP32-DevKit-blue)
-![PlatformIO](https://img.shields.io/badge/PlatformIO-Ready-orange)
-![Blynk](https://img.shields.io/badge/Blynk-IoT-green)
-
----
-
-## 📦 Lista de Componentes
-
-| Componente | Cantidad | Descripción | Precio Aprox. (CLP) |
-|------------|----------|-------------|---------------------|
-| ESP32 DevKit V1 | 1 | Microcontrolador WiFi/BT | $5.000 - $8.000 |
-| Tira LED RGB 2835 5m | 1 | 300 LEDs, 12V, la que compraste | $8.000 - $12.000 |
-| MOSFET IRLZ44N | 3 | Logic-level, TO-220 | $500 c/u |
-| Fuente 12V 3A | 1 | Para alimentar LEDs | $3.000 - $5.000 |
-| Sensor de Sonido KY-038 | 1 | Micrófono con salida analógica | $1.500 - $2.500 |
-| Resistencias 100Ω | 3 | 1/4W | $50 c/u |
-| Protoboard | 1 | 830 puntos | $2.000 |
-| Cables Dupont | ~20 | Macho-Macho | $1.500 |
-
-**Alternativas de MOSFET:** IRF3205, IRF540N (necesitan 10V en gate, menos ideal), IRLB8721
+Control total desde tu celular via WiFi 📱
 
 ---
 
-## 🔌 Esquema de Conexiones
+## ⚠️ IMPORTANTE: Compatibilidad de Hardware
 
-### Diagrama General
+| Función | ESP32-WROOM (HW-394) | ESP32-S2 | ESP32-S3 |
+|---------|---------------------|----------|----------|
+| 📺 TV-B-Gone | ✅ Sí | ✅ Sí | ✅ Sí |
+| 👻 Ghost Writer | ❌ No* | ✅ Sí | ✅ Sí |
+| 🖱️ Mouse Jiggler | ❌ No* | ✅ Sí | ✅ Sí |
 
-```
-                                    ┌─────────────────────────────────┐
-                                    │      FUENTE DE PODER 12V        │
-                                    │  ┌─────┐                        │
-                                    │  │ AC  │ ══════╗                │
-                                    │  │ IN  │       ║ 220V           │
-                                    │  └─────┘       ║                │
-                                    │  ┌─────┐  ┌────╨────┐           │
-                                    │  │+12V │  │  GND    │           │
-                                    │  └──┬──┘  └────┬────┘           │
-                                    └─────┼──────────┼────────────────┘
-                                          │          │
-          ┌───────────────────────────────┼──────────┼───────────────────────────┐
-          │                               │          │                           │
-          │    ╔══════════════════════════╧══════════╧════════════════════╗      │
-          │    ║            TIRA LED RGB 2835 - 5 METROS                  ║      │
-          │    ║  ┌────────────────────────────────────────────────────┐  ║      │
-          │    ║  │  +12V    R (Rojo)    G (Verde)    B (Azul)         │  ║      │
-          │    ║  └────┬────────┬────────────┬────────────┬────────────┘  ║      │
-          │    ╚═══════╪════════╪════════════╪════════════╪═══════════════╝      │
-          │            │        │            │            │                      │
-          │     +12V───┘        │            │            │                      │
-          │                     │            │            │                      │
-          │              ┌──────┴──────┐ ┌───┴────┐ ┌─────┴────┐                 │
-          │              │   MOSFET    │ │ MOSFET │ │  MOSFET  │                 │
-          │              │   ROJO      │ │ VERDE  │ │   AZUL   │                 │
-          │              │  IRLZ44N    │ │IRLZ44N │ │ IRLZ44N  │                 │
-          │              │    ___      │ │   ___  │ │    ___   │                 │
-          │              │   |   |     │ │  |   | │ │   |   |  │                 │
-          │         D────┤   | M |     │ │  | M | │ │   | M |  ├────D            │
-          │              │   |___|     │ │  |___| │ │   |___|  │                 │
-          │              │  G  │  S    │ │ G │  S │ │  G │  S  │                 │
-          │              └──┬──┴──┬────┘ └─┬─┴──┬─┘ └──┬─┴──┬──┘                 │
-          │                 │     │        │    │      │    │                    │
-          │                 │     │        │    │      │    │                    │
-          │              100Ω    GND    100Ω   GND  100Ω   GND                   │
-          │                 │     │        │    │      │    │                    │
-          │                 │     └────────┴────┴──────┴────┘                    │
-          │                 │                   │                                │
-          │                 │                   │ (GND común)                    │
-          │                 │                   │                                │
-          │    ┌────────────┴───────────────────┴────────────────────────┐       │
-          │    │                      ESP32                              │       │
-          │    │  ┌──────────────────────────────────────────────────┐   │       │
-          │    │  │                                                  │   │       │
-          │    │  │   GPIO25 ────── 100Ω ──── Gate MOSFET Rojo      │   │       │
-          │    │  │   GPIO26 ────── 100Ω ──── Gate MOSFET Verde     │   │       │
-          │    │  │   GPIO27 ────── 100Ω ──── Gate MOSFET Azul      │   │       │
-          │    │  │   GPIO34 ────── Salida Analógica Sensor Sonido  │   │       │
-          │    │  │   3.3V   ────── VCC Sensor Sonido               │   │       │
-          │    │  │   GND    ────── GND (común con fuente 12V)      │   │       │
-          │    │  │   VIN    ────── +5V (desde fuente o USB)        │   │       │
-          │    │  │                                                  │   │       │
-          │    │  └──────────────────────────────────────────────────┘   │       │
-          │    └─────────────────────────────────────────────────────────┘       │
-          │                                                                      │
-          │    ┌─────────────────────────────────────────────────────────┐       │
-          │    │              SENSOR DE SONIDO KY-038                    │       │
-          │    │  ┌──────────────────────────────────────────────────┐   │       │
-          │    │  │    VCC ──────── 3.3V ESP32                       │   │       │
-          │    │  │    GND ──────── GND                              │   │       │
-          │    │  │    A0  ──────── GPIO34 (Salida Analógica)        │   │       │
-          │    │  │    D0  ──────── (No usar - salida digital)       │   │       │
-          │    │  └──────────────────────────────────────────────────┘   │       │
-          │    └─────────────────────────────────────────────────────────┘       │
-          │                                                                      │
-          └──────────────────────────────────────────────────────────────────────┘
-```
+**\*El ESP32 clásico NO tiene USB HID nativo.** Para Ghost Writer y Mouse Jiggler necesitas:
+- **Opción 1:** Comprar un ESP32-S2 o ESP32-S3 (~$5.000-8.000 CLP)
+- **Opción 2:** Agregar módulo CH9329 (~$3.000 CLP) - Convierte UART a USB HID
 
-### Conexiones Resumidas
-
-#### ESP32 → MOSFETs (con resistencia 100Ω)
-
-| ESP32 Pin | Resistencia | MOSFET | Color |
-|-----------|-------------|--------|-------|
-| GPIO25 | 100Ω | Gate Q1 | 🔴 Rojo |
-| GPIO26 | 100Ω | Gate Q2 | 🟢 Verde |
-| GPIO27 | 100Ω | Gate Q3 | 🔵 Azul |
-
-#### MOSFETs → Tira LED
-
-| MOSFET | Pin Drain | Pin Source |
-|--------|-----------|------------|
-| Q1 (Rojo) | Cable R de tira | GND común |
-| Q2 (Verde) | Cable G de tira | GND común |
-| Q3 (Azul) | Cable B de tira | GND común |
-
-#### Sensor de Sonido KY-038
-
-| Sensor Pin | ESP32 Pin |
-|------------|-----------|
-| VCC | 3.3V |
-| GND | GND |
-| A0 | GPIO34 |
-
-#### Alimentación
-
-| Componente | Positivo | Negativo |
-|------------|----------|----------|
-| Tira LED | +12V Fuente | (via MOSFETs) |
-| ESP32 | 5V (USB o VIN) | GND común |
-| Sensor | 3.3V ESP32 | GND común |
+### 🎯 Con tu ESP32-WROOM actual puedes usar:
+- ✅ TV-B-Gone (solo necesitas 1 LED infrarrojo)
+- ✅ Interfaz web de control
+- ✅ WiFi trolling (crear redes falsas, etc.)
 
 ---
 
-## 📱 Configuración de Blynk
+## 📺 TV-B-GONE (Funciona en CUALQUIER ESP32)
 
-### Paso 1: Crear cuenta en Blynk
 
-1. Descarga la app **Blynk IoT** (no la versión legacy)
-   - [Android](https://play.google.com/store/apps/details?id=cloud.blynk)
-   - [iOS](https://apps.apple.com/app/blynk-iot/id1559317868)
+### Componentes necesarios:
+| Componente | Precio | Dónde comprar |
+|------------|--------|---------------|
+| LED Infrarrojo 5mm | $200 | Cualquier electrónica |
+| Resistencia 100Ω | $50 | Cualquier electrónica |
 
-2. Crea una cuenta en [blynk.cloud](https://blynk.cloud)
-
-### Paso 2: Crear Template
-
-1. En Blynk.Cloud → **Templates** → **New Template**
-2. Nombre: `RGB LED Controller`
-3. Hardware: `ESP32`
-4. Connection Type: `WiFi`
-
-### Paso 3: Configurar Datastreams
-
-Crear los siguientes **Datastreams** (Virtual Pins):
-
-| Pin | Nombre | Tipo | Min | Max | Descripción |
-|-----|--------|------|-----|-----|-------------|
-| V0 | Color | Integer | 0 | 255 | zeRGBa (3 valores) |
-| V1 | Brightness | Integer | 0 | 255 | Brillo general |
-| V2 | Power | Integer | 0 | 1 | Encendido/Apagado |
-| V3 | Mode | Integer | 0 | 5 | Selector de modo |
-| V4 | Effect Speed | Integer | 1 | 100 | Velocidad efectos |
-| V5 | Mic Sensitivity | Integer | 1 | 100 | Sensibilidad música |
-| V6 | Sound Level | Integer | 0 | 4095 | Nivel sonido (lectura) |
-
-### Paso 4: Diseñar Dashboard en la App
-
-Agregar estos **Widgets**:
-
+### Conexión:
 ```
-┌─────────────────────────────────────────────────────┐
-│                 RGB LED CONTROLLER                  │
-├─────────────────────────────────────────────────────┤
-│                                                     │
-│   ┌─────────────────────────────────────────────┐   │
-│   │                                             │   │
-│   │              🎨 zeRGBa                      │   │
-│   │              (V0 - Merge)                   │   │
-│   │                                             │   │
-│   └─────────────────────────────────────────────┘   │
-│                                                     │
-│   ┌─────────────────┐    ┌──────────────────────┐   │
-│   │   🔆 Brillo     │    │   ⚡ POWER          │   │
-│   │   Slider V1     │    │   Button V2         │   │
-│   │   (0-255)       │    │   (Switch)          │   │
-│   └─────────────────┘    └──────────────────────┘   │
-│                                                     │
-│   ┌─────────────────────────────────────────────┐   │
-│   │  📋 Modo:  Manual|Música|Rainbow|Fade|...   │   │
-│   │  Segmented Switch V3                        │   │
-│   └─────────────────────────────────────────────┘   │
-│                                                     │
-│   ┌─────────────────┐    ┌──────────────────────┐   │
-│   │ 🚀 Velocidad    │    │  🎤 Sensibilidad    │   │
-│   │   Slider V4     │    │    Slider V5        │   │
-│   │   (1-100)       │    │    (1-100)          │   │
-│   └─────────────────┘    └──────────────────────┘   │
-│                                                     │
-│   ┌─────────────────────────────────────────────┐   │
-│   │  📊 Nivel de Sonido                         │   │
-│   │  Gauge V6 (0-4095)                          │   │
-│   └─────────────────────────────────────────────┘   │
-│                                                     │
-└─────────────────────────────────────────────────────┘
+ESP32 GPIO4 ──── 100Ω ──── LED IR (+) ──── GND
+                            (pata larga)
 ```
 
-### Paso 5: Obtener Credenciales
+### Marcas soportadas:
+Samsung, LG, Sony, Philips, Panasonic, Toshiba, Sharp, Sanyo, Hisense, TCL, Vizio, Roku TV, Fire TV, Apple TV
 
-1. **Template** → Copia el `BLYNK_TEMPLATE_ID`
-2. **Devices** → **New Device** → **From Template**
-3. Copia el `BLYNK_AUTH_TOKEN`
+---
 
-### Paso 6: Actualizar el Código
+## 🚀 Instalación Rápida
 
-Edita `src/main.cpp` y reemplaza:
+### Para TV-B-Gone solamente (tu ESP32 actual):
+
+
+Crea un archivo simplificado `tv_b_gone_simple.cpp`:
 
 ```cpp
-#define BLYNK_TEMPLATE_ID "TU_TEMPLATE_ID"      // Ej: "TMPLxxxxxx"
-#define BLYNK_TEMPLATE_NAME "RGB LED Controller"
-#define BLYNK_AUTH_TOKEN "TU_AUTH_TOKEN"        // Ej: "xxxxxxxx"
+#include <WiFi.h>
+#include <WebServer.h>
 
-const char* ssid = "TU_WIFI_SSID";              // Nombre de tu WiFi
-const char* password = "TU_WIFI_PASSWORD";       // Contraseña WiFi
+const char* ssid = "TV-B-Gone";
+const char* password = "12345678";
+#define IR_LED_PIN 4
+
+WebServer server(80);
+
+// Códigos IR de TVs
+struct TVCode { String brand; unsigned long code; int bits; };
+TVCode tvCodes[] = {
+  {"Samsung", 0xE0E040BF, 32}, {"LG", 0x20DF10EF, 32},
+  {"Sony", 0xA90, 12}, {"Panasonic", 0x400401FC, 32},
+  {"Philips", 0x0C, 6}, {"Toshiba", 0x02FD48B7, 32}
+};
+
+void sendIRPulse(int t) {
+  unsigned long start = micros();
+  while (micros() - start < t) {
+    digitalWrite(IR_LED_PIN, HIGH); delayMicroseconds(13);
+    digitalWrite(IR_LED_PIN, LOW); delayMicroseconds(13);
+  }
+}
+
+void sendNEC(unsigned long code, int bits) {
+  sendIRPulse(9000); delayMicroseconds(4500);
+  for (int i = bits - 1; i >= 0; i--) {
+    sendIRPulse(560);
+    delayMicroseconds((code & (1UL << i)) ? 1690 : 560);
+  }
+  sendIRPulse(560);
+}
+
+void sendAllTVOff() {
+  for (int i = 0; i < 6; i++) {
+    for (int j = 0; j < 3; j++) {
+      sendNEC(tvCodes[i].code, tvCodes[i].bits);
+      delay(40);
+    }
+  }
+}
+
+void setup() {
+  pinMode(IR_LED_PIN, OUTPUT);
+  WiFi.softAP(ssid, password);
+  server.on("/", []() {
+    server.send(200, "text/html", 
+      "<h1>TV-B-Gone</h1><button onclick=\"fetch('/off')\">APAGAR TVs</button>");
+  });
+  server.on("/off", []() { sendAllTVOff(); server.send(200, "text/plain", "OK"); });
+  server.begin();
+}
+
+void loop() { server.handleClient(); }
 ```
 
 ---
 
-## 🔧 Instalación y Carga
+## 📱 Cómo Usar
 
-### Opción 1: PlatformIO (Recomendado)
+1. **Sube el código** al ESP32
+2. **Conecta tu celular** a la red WiFi `TrollBox_ESP32` (contraseña: `12345678`)
+3. **Abre el navegador** y ve a `http://192.168.4.1`
+4. **¡Trollea!** 😈
 
-```bash
-# Instalar PlatformIO CLI o usar extensión de VS Code
-cd esp32-rgb-led-controller
+---
 
-# Compilar
-pio run
+## 🎮 Funciones Disponibles
 
-# Cargar al ESP32
-pio run --target upload
+### 📺 TV-B-Gone
+- **APAGAR TODAS LAS TVs**: Envía códigos IR a todas las marcas conocidas
+- Rango: ~5-10 metros (aumentable con más LEDs IR)
 
-# Monitor serial
-pio device monitor
+### 👻 Escritor Fantasma (requiere ESP32-S2/S3)
+- **Auto-escribir**: Escribe mensajes random cada X segundos
+- **Mensaje personalizado**: Escribe lo que quieras
+- **Mensaje random ahora**: Escribe un mensaje espeluznante inmediatamente
+
+Mensajes incluidos:
+- "Te estoy observando..."
+- "Detrás de ti..."
+- "Por qué googleaste eso?"
+- "Tu jefe está detrás de ti"
+- Y muchos más...
+
+### 🖱️ Mouse Jiggler (requiere ESP32-S2/S3)
+- **Auto-mover**: Mueve el mouse cada X segundos (evita suspensión)
+- **Mover ahora**: Un movimiento pequeño
+- **MODO LOCO**: Mueve el mouse como poseído 🤪
+
+### 🎯 Atajos Especiales (requiere ESP32-S2/S3)
+- **RICKROLL**: Abre YouTube con "Never Gonna Give You Up"
+- **Abrir Notepad**: Abre bloc de notas en Windows
+- **Bloquear PC**: Win+L
+- **Screenshot**: Win+Shift+S
+- **URL personalizada**: Abre cualquier página web
+
+
+---
+
+## 🔧 Alternativa: Módulo CH9329 para ESP32 clásico
+
+Si no quieres comprar un ESP32-S2, puedes agregar un **CH9329**:
+
+```
+ESP32 TX (GPIO17) ──── RX CH9329
+ESP32 RX (GPIO16) ──── TX CH9329
+ESP32 3.3V ─────────── VCC CH9329
+ESP32 GND ──────────── GND CH9329
+CH9329 USB ─────────── PC víctima
 ```
 
-### Opción 2: Arduino IDE
-
-1. Instala soporte ESP32: **Archivo** → **Preferencias** → URLs adicionales:
-   ```
-   https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
-   ```
-
-2. Instala librería Blynk: **Sketch** → **Include Library** → **Manage Libraries** → Busca "Blynk"
-
-3. Selecciona placa: **ESP32 Dev Module**
-
-4. Copia el contenido de `src/main.cpp` a un nuevo sketch
+El CH9329 convierte comandos seriales en USB HID (teclado/mouse).
 
 ---
 
-## 🎮 Modos de Operación
+## ⚠️ Disclaimer
 
-| Modo | V3 | Descripción |
-|------|----|-----------| 
-| **Manual** | 0 | Control directo del color con zeRGBa |
-| **Música** | 1 | LEDs reaccionan al sonido del ambiente |
-| **Rainbow** | 2 | Ciclo continuo de colores arcoíris |
-| **Fade** | 3 | Transición suave entre colores predefinidos |
-| **Strobe** | 4 | Efecto estroboscópico con el color seleccionado |
-| **Fire** | 5 | Simula efecto de fuego/llama |
+Este proyecto es **SOLO PARA FINES EDUCATIVOS Y DE ENTRETENIMIENTO**.
 
----
+- ✅ Úsalo con tus propios dispositivos
+- ✅ Úsalo para bromas inofensivas entre amigos
+- ❌ NO lo uses para actividades maliciosas
+- ❌ NO lo uses en equipos ajenos sin permiso
+- ❌ NO lo uses en lugares públicos de forma disruptiva
 
-## 🎵 Modo Música - Ajustes
-
-El modo música convierte el sonido en colores:
-
-- **Sonido bajo** → 🔵 Azul → 🟢 Verde
-- **Sonido medio** → 🟢 Verde → 🟡 Amarillo  
-- **Sonido alto** → 🟠 Naranja → 🔴 Rojo
-
-### Ajustar Sensibilidad
-
-1. Usa el slider **Sensibilidad** (V5) en la app
-2. Valores bajos (1-30): Solo reacciona a sonidos fuertes
-3. Valores altos (70-100): Reacciona a sonidos suaves
-
-### Calibración del Sensor
-
-Si el sensor KY-038 tiene potenciómetro, ajústalo para que el LED integrado parpadee con la música.
-
----
-
-## ⚠️ Notas Importantes
-
-### Sobre los MOSFETs
-
-- **IRLZ44N** es ideal porque es "logic-level" (funciona con 3.3V del ESP32)
-- Si usas **IRF540N**, necesitas un driver o amplificador ya que requiere >10V en gate
-- El **Drain** va a la tira LED, el **Source** a GND
-
-### Sobre la Alimentación
-
-- **NUNCA** alimentes la tira LED desde el ESP32
-- Usa una fuente de 12V dedicada
-- Conecta los GND de la fuente y del ESP32
-
-### Sobre el Sensor de Sonido
-
-- El **KY-038** tiene salida analógica (A0) y digital (D0)
-- Usamos **A0** para mejor respuesta
-- GPIO34-39 del ESP32 son solo entrada (perfecto para el sensor)
-
----
-
-## 🐛 Solución de Problemas
-
-| Problema | Posible Causa | Solución |
-|----------|---------------|----------|
-| LEDs no encienden | Conexión incorrecta | Verifica polaridad y conexiones |
-| Solo un color funciona | MOSFET dañado o mal conectado | Revisa cada canal |
-| No conecta a WiFi | Credenciales incorrectas | Verifica SSID y password |
-| No conecta a Blynk | Token incorrecto | Verifica BLYNK_AUTH_TOKEN |
-| Modo música no responde | Sensor mal conectado | Verifica GPIO34 y alimentación |
-| Colores incorrectos | Pines invertidos | Intercambia conexiones R/G/B |
+**El autor no se hace responsable del mal uso de este código.**
 
 ---
 
 ## 📝 Licencia
 
-Proyecto de código abierto. Úsalo, modifícalo y compártelo libremente.
+Proyecto open source. Úsalo, modifícalo, compártelo.
 
 ---
 
@@ -338,4 +197,4 @@ Proyecto de código abierto. Úsalo, modifícalo y compártelo libremente.
 
 Desarrollado con ayuda de **Kiro** - AI Development Assistant
 
-¡Disfruta tu proyecto! 🎉🌈
+¡Que disfrutes trolleando (responsablemente)! 😈🎉
